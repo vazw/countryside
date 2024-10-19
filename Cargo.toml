@@ -1,0 +1,16 @@
+[package]
+name = "countryside"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+actix-rt = "2.10.0"
+anyhow = "1.0.90"
+nostr-db = { version = "0.4.5", features = ["search"] }
+nostr-extensions = { git = "https://github.com/vazw/rnostr.git"}
+nostr-relay = {git = "https://github.com/vazw/rnostr.git", features = ["search"]}
+serde = { version = "1.0.210", features = ["derive"] }
+tracing = "0.1.40"
+tracing-subscriber = "0.3.18"
+public-ip-address = { version = "0.3.2" }
+actix = "0.13.5"

@@ -14,12 +14,12 @@ async fn main() -> Result<(), anyhow::Error> {
     )?;
     let db = app_data.db.clone();
     app_data
+        .add_extension(zone::Zone::new())
         .add_extension(nostr_extensions::Metrics::new())
-        .add_extension(nostr_extensions::Auth::new())
         .add_extension(nostr_extensions::Ratelimiter::new())
         .add_extension(nostr_extensions::Count::new(db))
         .add_extension(nostr_extensions::Search::new())
-        .add_extension(zone::Zone::new())
+        .add_extension(nostr_extensions::Auth::new())
         .web_server()?
         .await?;
     info!("Relay server shutdown");

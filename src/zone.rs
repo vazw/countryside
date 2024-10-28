@@ -8,6 +8,8 @@ use nostr_relay::{
 };
 use serde::Deserialize;
 
+pub struct UserPubkey(String);
+
 #[derive(Deserialize, Default, Debug)]
 #[serde(default)]
 pub struct ZoneSetting {
@@ -43,10 +45,17 @@ impl Extension for Zone {
     fn setting(&mut self, setting: &SettingWrapper) {
         let mut w = setting.write();
         self.setting = w.parse_extension(self.name());
+        info!("Zone setting: {:?}", self.setting);
         if self.setting.enabled {
             w.add_information(
                 "language_tags".to_string(),
-                self.setting.country_code.clone().to_vec().into(),
+                self.setting
+                    .country_code
+                    .clone()
+                    .iter()
+                    .map(|x| x.to_lowercase())
+                    .collect::<Vec<String>>()
+                    .into(),
             );
         }
     }
@@ -58,17 +67,42 @@ impl Extension for Zone {
         _ctx: &mut <Session as actix::Actor>::Context,
     ) -> ExtensionMessageResult {
         if self.setting.enabled {
-            if let IncomingMessage::Event(event) = &msg.msg {
-                info!("Recieved from {}", session.ip());
-                if !self.match_zone(session.zone()) {
-                    return OutgoingMessage::ok(
-                        &event.id_str(),
-                        false,
-                        &format!("Not allowed country {}", session.zone()),
-                    )
-                    .into();
+            match &msg.msg {
+                IncomingMessage::Event(event) => {
+                    if let Some(UserPubkey(pk)) = session.get::<UserPubkey>() {
+                        if !self.match_zone(session.zone())
+                            || !pk.eq(&event.pubkey_str())
+                        {
+                            return OutgoingMessage::ok(
+                                &event.id_str(),
+                                false,
+                                &format!(
+                                    "Not allowed country {}",
+                                    session.zone()
+                                ),
+                            )
+                            .into();
+                        }
+                    } else {
+                        return OutgoingMessage::ok(
+                            &event.id_str(),
+                            false,
+                            "auth-required: need reconnect",
+                        )
+                        .into();
+                    }
+                    info!(
+                        "Recieved from {}: {}",
+                        session.ip(),
+                        &event.content()
+                    );
+                    counter!("nostr_relay_zone_note_saved", "command" => "EVENT", "name" => session.zone().to_string()).increment(1);
                 }
-                counter!("nostr_relay_zone_note_saved", "command" => "EVENT", "name" => session.zone().to_string()).increment(1);
+                IncomingMessage::Auth(event) => {
+                    let pk = event.pubkey_str().clone();
+                    session.set(UserPubkey(pk));
+                }
+                _ => {}
             }
         }
         ExtensionMessageResult::Continue(msg)

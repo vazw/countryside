@@ -45,19 +45,11 @@ impl Extension for Zone {
     fn setting(&mut self, setting: &SettingWrapper) {
         let mut w = setting.write();
         self.setting = w.parse_extension(self.name());
-        info!("Zone setting: {:?}", self.setting);
         if self.setting.enabled {
-            w.add_information(
-                "language_tags".to_string(),
-                self.setting
-                    .country_code
-                    .clone()
-                    .iter()
-                    .map(|x| x.to_lowercase())
-                    .collect::<Vec<String>>()
-                    .into(),
-            );
+            let list_lowwer = self.setting.country_code.clone().to_vec();
+            w.add_information("language_tags".to_string(), list_lowwer.into());
         }
+        info!("Zone setting: {:?}", self.setting);
     }
 
     fn message(
@@ -70,9 +62,7 @@ impl Extension for Zone {
             match &msg.msg {
                 IncomingMessage::Event(event) => {
                     if let Some(UserPubkey(pk)) = session.get::<UserPubkey>() {
-                        if !self.match_zone(session.zone())
-                            || !pk.eq(&event.pubkey_str())
-                        {
+                        if !self.match_zone(session.zone()) {
                             return OutgoingMessage::ok(
                                 &event.id_str(),
                                 false,
@@ -80,6 +70,14 @@ impl Extension for Zone {
                                     "Not allowed country {}",
                                     session.zone()
                                 ),
+                            )
+                            .into();
+                        }
+                        if !pk.eq(&event.pubkey_str()) {
+                            return OutgoingMessage::ok(
+                                &event.id_str(),
+                                false,
+                                "boardcast is forbidden!",
                             )
                             .into();
                         }
@@ -92,8 +90,9 @@ impl Extension for Zone {
                         .into();
                     }
                     info!(
-                        "Recieved from {}: {}",
+                        "Recieved from {}::{}::{}",
                         session.ip(),
+                        &event.pubkey_str(),
                         &event.content()
                     );
                     counter!("nostr_relay_zone_note_saved", "command" => "EVENT", "name" => session.zone().to_string()).increment(1);
